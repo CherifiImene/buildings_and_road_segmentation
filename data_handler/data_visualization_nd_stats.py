@@ -92,4 +92,4 @@ def compute_class_weights(total, class_counts):
   weights = []
   for class_count in class_counts:
     weights.append(total/class_count)
-  return weights
+  return weights[:-1] # to ignore the last class void
