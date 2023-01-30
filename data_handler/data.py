@@ -38,10 +38,13 @@ class CamvidDataset(Dataset):
     self.augment = augment
     self.feature_extractor = feature_extractor
 
+    parent_dir = os.path.dirname(
+      os.path.dirname(__file__)
+    )
     if num_classes == 12:
-      conf_file = os.path.join(root_dir,'label_colors11.txt')
+      conf_file = os.path.join(parent_dir,'utils','label_colors11.txt')
     else:
-      conf_file = os.path.join(root_dir,'label_colors.txt')
+      conf_file = os.path.join(parent_dir,'utils','label_colors.txt')
     
     colors, labels = self._dataset_conf(conf_file)
     self.id2label = dict(zip(range(self.num_classes),labels))
@@ -104,7 +107,7 @@ class CamvidDataset(Dataset):
   # Extract labels and their corresponding BGR colors
   def _dataset_conf(self,filename = None):
     if not filename:
-      filename = './dataset/camvid/label_colors.txt'
+      filename = './utils/label_colors.txt'
     
     colors, class_names = [], []
     with open(filename) as f:
@@ -212,10 +215,10 @@ def get_dataloader(dataset,
                        Default to 5, meaning 5*(num_workers) batches will be loaded in advance.
 
   Raises:
-      Exception: _description_
+      TypeError: raises TypeError if the dataset is not a string or a list.
 
   Returns:
-      _type_: _description_
+      tuple: training and validation data loaders.
   """
   if isinstance(dataset,str):
     train_dataset, val_dataset = get_dataset(data_path=dataset)
@@ -223,7 +226,7 @@ def get_dataloader(dataset,
     train_dataset, val_dataset = dataset[0], dataset[1]
   
   else:
-    raise Exception(f"Expected dataset to be either string or list, got : {type(dataset)}")
+    raise TypeError(f"Expected dataset to be either string or list, got : {type(dataset)}")
     
   train_dataloader = DataLoader(train_dataset, 
                                 batch_size=train_batch_size, 
