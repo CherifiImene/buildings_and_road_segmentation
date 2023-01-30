@@ -15,6 +15,7 @@ class SegFormerFineTuned(pl.LightningModule):
                metrics_interval,
                class_weights,
                model_path="nvidia/segformer-b0-finetuned-ade-512-512"):
+    
     super(SegFormerFineTuned, self).__init__()
     self.id2label = id2label
     self.metrics_interval = metrics_interval
@@ -63,7 +64,7 @@ class SegFormerFineTuned(pl.LightningModule):
             align_corners=False
         )
   
-    weighted_loss = CrossEntropyLoss(weight=self.weights.cuda(),ignore_index=255)
+    weighted_loss = CrossEntropyLoss(weight=self.weights.cuda(),ignore_index=11)
     loss = weighted_loss(predictions,masks)
     
     predictions = predictions.argmax(dim=1)
@@ -78,7 +79,7 @@ class SegFormerFineTuned(pl.LightningModule):
 
         metrics = self.train_mean_iou.compute(
             num_labels=self.num_classes, 
-            ignore_index=255, 
+            ignore_index=11, 
             reduce_labels=False,
         )
         
@@ -97,6 +98,7 @@ class SegFormerFineTuned(pl.LightningModule):
     # Forward pass    
     
     predictions = self(images,masks)[0]
+    
     # up-samples the predictions 
     # from size (H/4,W/4) -> (H,W)
     predictions = torch.nn.functional.interpolate(
@@ -105,7 +107,7 @@ class SegFormerFineTuned(pl.LightningModule):
             mode="bilinear", 
             align_corners=False
         )
-    weighted_loss = CrossEntropyLoss(weight=self.weights.cuda(),ignore_index=255)
+    weighted_loss = CrossEntropyLoss(weight=self.weights.cuda(),ignore_index=11)
     loss = weighted_loss(predictions,masks)
     predictions = predictions.argmax(dim=1)
 
@@ -121,7 +123,7 @@ class SegFormerFineTuned(pl.LightningModule):
   def validation_epoch_end(self,outputs):
     metrics = self.val_mean_iou.compute(
               num_labels=self.num_classes, 
-              ignore_index=255, 
+              ignore_index=11, 
               reduce_labels=False,
           )
         
