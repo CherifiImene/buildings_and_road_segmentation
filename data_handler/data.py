@@ -126,7 +126,13 @@ class CamvidDataset(Dataset):
           A.RandomRotate90(p=0.5),
           A.OneOf([
                   A.Affine(p=0.33,shear=(-5,5),rotate=(-80,90)),
-                  A.ShiftScaleRotate(shift_limit=0.2, scale_limit=0.2, rotate_limit=120, p=0.33),
+                  A.ShiftScaleRotate(
+                    shift_limit=0.2,
+                    scale_limit=0.2,
+                    rotate_limit=120,
+                    #border_mode= cv2.BORDER_CONSTANT,
+                    #value=255, # padding with the ignored class 
+                    p=0.33),
                   A.GridDistortion(p=0.33),
                 ], p=1),
           A.CLAHE(p=0.8),

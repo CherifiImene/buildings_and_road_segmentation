@@ -6,6 +6,8 @@ from torch.nn import CrossEntropyLoss
 #from torchmetrics.functional import accuracy
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
+#from utils.utils import VisualizeSampleCallback
+from data_handler.data import CamvidDataset
 
 
 class SegFormerFineTuned(pl.LightningModule):
@@ -41,7 +43,7 @@ class SegFormerFineTuned(pl.LightningModule):
     self.test_mean_iou = evaluate.load("mean_iou")
     
     # Save the hyper-parameters
-    # To be saved with the checkpoints
+    # with the checkpoints
     self.save_hyperparameters()
   
   def forward(self, images, masks):
@@ -60,11 +62,11 @@ class SegFormerFineTuned(pl.LightningModule):
     predictions = torch.nn.functional.interpolate(
             predictions, 
             size=masks.shape[-2:], 
-            mode="bilinear", 
+            mode="nearest-exact", 
             align_corners=False
         )
   
-    weighted_loss = CrossEntropyLoss(weight=self.weights.cuda(),ignore_index=11)
+    weighted_loss = CrossEntropyLoss(weight=self.weights,ignore_index=255)
     loss = weighted_loss(predictions,masks)
     
     predictions = predictions.argmax(dim=1)
@@ -79,7 +81,7 @@ class SegFormerFineTuned(pl.LightningModule):
 
         metrics = self.train_mean_iou.compute(
             num_labels=self.num_classes, 
-            ignore_index=11, 
+            ignore_index=255, 
             reduce_labels=False,
         )
         
@@ -104,10 +106,10 @@ class SegFormerFineTuned(pl.LightningModule):
     predictions = torch.nn.functional.interpolate(
             predictions, 
             size=masks.shape[-2:], 
-            mode="bilinear", 
+            mode="nearest-exact", 
             align_corners=False
         )
-    weighted_loss = CrossEntropyLoss(weight=self.weights.cuda(),ignore_index=11)
+    weighted_loss = CrossEntropyLoss(weight=self.weights,ignore_index=255)
     loss = weighted_loss(predictions,masks)
     predictions = predictions.argmax(dim=1)
 
@@ -123,7 +125,7 @@ class SegFormerFineTuned(pl.LightningModule):
   def validation_epoch_end(self,outputs):
     metrics = self.val_mean_iou.compute(
               num_labels=self.num_classes, 
-              ignore_index=11, 
+              ignore_index=255, 
               reduce_labels=False,
           )
         
@@ -155,17 +157,29 @@ def train_model(train_dataloader,
                 accelerator_mode='gpu',
                 devices=1,
                 max_epochs=300,
-                log_every_n_steps=8
+                log_every_n_steps=8,
+                last_ckpt_path=None,
+                resume=False
             ):
-    #id2label = train_dataset.id2label
-    model = SegFormerFineTuned(
-        id2label, 
-        train_dl=train_dataloader, 
-        val_dl=val_dataloader, 
-        metrics_interval=log_every_n_steps,
-        class_weights=torch.Tensor(class_weights),
-        model_path=hf_model_name
-    )
+    
+    if accelerator_mode == "gpu":
+        model = SegFormerFineTuned(
+            id2label, 
+            train_dl=train_dataloader, 
+            val_dl=val_dataloader, 
+            metrics_interval=log_every_n_steps,
+            class_weights=torch.Tensor(class_weights).cuda(),
+            model_path=hf_model_name
+        )
+    else:
+        model = SegFormerFineTuned(
+            id2label, 
+            train_dl=train_dataloader, 
+            val_dl=val_dataloader, 
+            metrics_interval=log_every_n_steps,
+            class_weights=torch.Tensor(class_weights),
+            model_path=hf_model_name
+        )
 
     # Callback to stop when the model stops improving
     early_stop_callback = EarlyStopping(
@@ -178,47 +192,8 @@ def train_model(train_dataloader,
     # monitor the evolution of training and validation metrics
     checkpoint_callback = ModelCheckpoint(save_top_k=1, monitor="val_loss")
 
-    trainer = pl.Trainer(
-        default_root_dir=ckpt_path,
-        accelerator=accelerator_mode,
-        devices=devices, 
-        callbacks=[early_stop_callback, checkpoint_callback],
-        max_epochs=max_epochs,
-        log_every_n_steps= log_every_n_steps,
-        val_check_interval=len(train_dataloader),
-    )
-    trainer.fit(model)
-
-def resume_training(ckpt_path,
-                    last_ckpt_path,
-                    train_dataloader,
-                    val_dataloader,
-                    id2label,
-                    class_weights,
-                    hf_model_name,
-                    accelerator_mode='gpu',
-                    devices=1,
-                    max_epochs=300,
-                    log_every_n_steps=8,
-                ):
-    model = SegFormerFineTuned(
-        id2label, 
-        train_dl=train_dataloader, 
-        val_dl=val_dataloader, 
-        metrics_interval=log_every_n_steps,
-        class_weights=torch.Tensor(class_weights),
-        model_path=hf_model_name
-    )
-    #SegFormerFineTuned.load_from_checkpoint(ckpt_path)
-    early_stop_callback = EarlyStopping(
-    monitor="val_loss", 
-    min_delta=0.00, 
-    patience=3, 
-    verbose=False, 
-    mode="min",
-)
-
-    checkpoint_callback = ModelCheckpoint(save_top_k=1, monitor="val_loss")
+    # Callback to see a prediction sample by the end of the training
+    #visualize_callback = VisualizeSampleCallback()
 
     trainer = pl.Trainer(
         default_root_dir=ckpt_path,
@@ -229,6 +204,10 @@ def resume_training(ckpt_path,
         log_every_n_steps= log_every_n_steps,
         val_check_interval=len(train_dataloader),
     )
+
+    if resume and last_ckpt_path:
+      trainer.fit(model,ckpt_path=last_ckpt_path)
+    else:
+      trainer.fit(model)
     
-    # Restore the full training
-    trainer.fit(model, ckpt_path=last_ckpt_path)
+    return trainer
