@@ -1,6 +1,7 @@
 import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
 
 # Visualization utilities
 
@@ -66,8 +67,6 @@ def show_samples(dataset, nb_samples, random=False):
     ims2 = axes[1,idx].imshow(rgb_mask,alpha=0.7)
     axes[0,idx].set_title("Ground Truth")
 
-# Gather statistics about the data
-
 # counts number of samples in each class
 def compute_class_distribution(dataset):
   summary = [0]*dataset.num_classes
@@ -93,3 +92,35 @@ def compute_class_weights(total, class_counts):
   for class_count in class_counts:
     weights.append(total/class_count)
   return weights
+
+# Plots the predictions and their corresponding masks
+def visualize_sample_predictions(val_dl,model,colormap):
+
+    model.eval()
+    
+    batch = next(iter(val_dl))
+    images, masks = batch['pixel_values'], batch['labels']
+
+    with torch.no_grad():
+      outputs = model(images,masks)
+      logits = outputs[0]
+      upsampled_logits = torch.nn.functional.interpolate(
+          logits, 
+          size=masks.shape[-2:], 
+          mode="nearest-exact", 
+          #align_corners=False
+      )
+
+    predicted = upsampled_logits.argmax(dim=1).cpu().numpy()
+    masks = masks.cpu().numpy()
+
+    f, axarr = plt.subplots(predicted.shape[0],2,figsize=(8,16))
+    for i in range(predicted.shape[0]):
+
+        axarr[i,0].imshow(colorize12_mask(predicted[i,...],colormap))
+        axarr[i,0].set_title("Model Prediction")
+        
+        axarr[i,1].imshow(colorize12_mask(masks[i,...],colormap))
+        axarr[i,1].set_title("Ground Truth")
+        
+        
