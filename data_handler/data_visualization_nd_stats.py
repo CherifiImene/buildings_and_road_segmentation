@@ -2,6 +2,7 @@ import seaborn as sns
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+import numpy as np
 
 # Visualization utilities
 
@@ -114,7 +115,7 @@ def visualize_sample_predictions(val_dl,model,colormap):
     predicted = upsampled_logits.argmax(dim=1).cpu().numpy()
     masks = masks.cpu().numpy()
 
-    f, axarr = plt.subplots(predicted.shape[0],2,figsize=(8,16))
+    f, axarr = plt.subplots(predicted.shape[0],2,figsize=(8,24))
     for i in range(predicted.shape[0]):
 
         axarr[i,0].imshow(colorize12_mask(predicted[i,...],colormap))
@@ -123,4 +124,31 @@ def visualize_sample_predictions(val_dl,model,colormap):
         axarr[i,1].imshow(colorize12_mask(masks[i,...],colormap))
         axarr[i,1].set_title("Ground Truth")
         
+# Plots the predictions and their corresponding masks
+def visualize_predictions_superposed(val_dl,model,colormap):
+
+    model.eval()
+    
+    batch = next(iter(val_dl))
+    images, masks = batch['pixel_values'], batch['labels']
+
+    with torch.no_grad():
+      outputs = model(images,masks)
+      logits = outputs[0]
+      upsampled_logits = torch.nn.functional.interpolate(
+          logits, 
+          size=masks.shape[-2:], 
+          mode="nearest-exact", 
+          #align_corners=False
+      )
+
+    predicted = upsampled_logits.argmax(dim=1).cpu().numpy()
+    masks = masks.cpu().numpy()
+
+    f, axarr = plt.subplots(1,predicted.shape[0],figsize=(24,8))
+    images = np.transpose(images.cpu().numpy(),(0,2,3,1))
+    for i in range(predicted.shape[0]):
+
+        axarr[i].imshow(images[i,...])
+        axarr[i].imshow(colorize12_mask(predicted[i,...],colormap),alpha=0.7)
         
