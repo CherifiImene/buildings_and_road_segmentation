@@ -43,7 +43,7 @@ class CamvidDataset(Dataset):
     )
     if num_classes == 12:
       conf_file = os.path.join(parent_dir,'utils','label_colors11.txt')
-    else:
+    else: # num_classes == 32 (original state)
       conf_file = os.path.join(parent_dir,'utils','label_colors.txt')
     
     colors, labels = self._dataset_conf(conf_file)
@@ -151,7 +151,7 @@ class CamvidDataset(Dataset):
     return aug_img, aug_mask
 
 
-# Returns a non batched data
+# Returns a non batched dataset
 def get_dataset(data_path='/dataset/camvid/',
                 val_split=0.2,
                 random_state=42,
